@@ -4,8 +4,10 @@ Writes one out-of-office email auto-reply, a single line of text, to
 ``/output/entry.txt`` (or ``$OOO_OUTPUT_DIR/entry.txt``) and to stdout.
 
 The entry must be UTF-8 text of 1-160 characters, not only white space
-(the sealed scorer's gate). Ten original candidates are kept below and
-``PICK`` selects the one that is submitted.
+(the sealed scorer's gate). ``entry_text()`` enforces it as five
+separate checks, each naming the rule it enforces. Ten original
+candidates are kept below and ``PICK`` selects the one that is
+submitted. The picked line is 93 characters of plain ASCII.
 """
 
 import os
@@ -59,16 +61,35 @@ MAX_CHARS = 160
 def entry_text():
     """Return the picked one-line out-of-office reply.
 
-    The gate is the sealed scorer's: UTF-8 text of 1-160 characters,
-    not only white space.
+    The gate is the sealed scorer's — UTF-8 text of 1-160 characters,
+    not only white space — enforced as five separate checks, each naming
+    the rule it enforces so a failure is diagnosable:
+
+    1. ``PICK`` must name one of the candidates.
+    2. The line must not be empty after whitespace normalisation.
+    3. The line must be a single line: no control characters.
+    4. The line must be plain ASCII.
+    5. The line must be 1-160 characters long.
     """
-    line = CANDIDATES[PICK]
-    if not (1 <= len(line) <= MAX_CHARS) or not line.strip():
+    if not 0 <= PICK < len(CANDIDATES):
         raise ValueError(
-            "entry must be 1-%d characters and not only white space, "
-            "got %d characters" % (MAX_CHARS, len(line))
+            "PICK index %d out of range for %d candidates" % (PICK, len(CANDIDATES))
         )
-    line.encode("utf-8")
+    line = CANDIDATES[PICK]
+    if not line.strip():
+        raise ValueError("entry is empty after whitespace normalisation")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in line):
+        raise ValueError(
+            "entry must be a single line without control characters"
+        )
+    try:
+        line.encode("ascii")
+    except UnicodeEncodeError:
+        raise ValueError("entry must be plain ASCII")
+    if not 1 <= len(line) <= MAX_CHARS:
+        raise ValueError(
+            "entry must be 1-%d characters, got %d" % (MAX_CHARS, len(line))
+        )
     return line
 
 
